@@ -14,110 +14,188 @@ function Body({ pdf, setPdf }) {
     const [result, setResult] = useState(null);
     const [pdfWidth, setPdfWidth] = useState(900);
 
+    // Responsive PDF width
     useEffect(() => {
-    function updateWidth() {
-        setPdfWidth(Math.min(window.innerWidth - 40, 900));
-    }
+        function updateWidth() {
+            setPdfWidth(
+                Math.min(window.innerWidth - 40, 900)
+            );
+        }
 
-    updateWidth();
+        updateWidth();
 
-    window.addEventListener("resize", updateWidth);
+        window.addEventListener("resize", updateWidth);
 
-    return () => {
-        window.removeEventListener("resize", updateWidth);
-    };
-   }, []);
+        return () => {
+            window.removeEventListener(
+                "resize",
+                updateWidth
+            );
+        };
+    }, []);
+
+    // Detect text selection on desktop and mobile
+    useEffect(() => {
+        let timer;
+
+        function handleSelectionChange() {
+            clearTimeout(timer);
+
+            timer = setTimeout(() => {
+                handleTextSelection();
+            }, 300);
+        }
+
+        document.addEventListener(
+            "selectionchange",
+            handleSelectionChange
+        );
+
+        return () => {
+            clearTimeout(timer);
+
+            document.removeEventListener(
+                "selectionchange",
+                handleSelectionChange
+            );
+        };
+    }, []);
 
     function handleUpload(e) {
         setPdf(e.target.files[0]);
     }
 
     async function handleTextSelection() {
-    const selection = window.getSelection();
-    const text = selection.toString().trim();
+        const selection = window.getSelection();
 
-    if(!text) {
-        setSelectedText("");
-        setPopupPosition(null);
+        if (!selection || selection.rangeCount === 0) {
+            return;
+        }
+
+        const text = selection.toString().trim();
+
+        if (!text) {
+            setSelectedText("");
+            setPopupPosition(null);
+            setResult(null);
+            return;
+        }
+
+        const rect =
+            selection
+                .getRangeAt(0)
+                .getBoundingClientRect();
+
+        const container =
+            document.getElementById("pdf-container");
+
+        const containerRect =
+            container.getBoundingClientRect();
+
+        setSelectedText(text);
         setResult(null);
-        return;
-    }
 
-    const rect = selection.getRangeAt(0).getBoundingClientRect();
-    const container = document.getElementById("pdf-container");
-    const containerRect = container.getBoundingClientRect();
-    
+        setPopupPosition({
+            top:
+                rect.bottom -
+                containerRect.top +
+                10,
 
-
-    setSelectedText(text);
-    setResult(null)
-
-    setPopupPosition({
-        top: rect.bottom - containerRect.top + 10,
-        left: rect.left - containerRect.left
-    });
-
-        const response = await fetch("https://smartreader-backend.onrender.com/explain", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            text: text
-        })
+            left:
+                rect.left -
+                containerRect.left
         });
 
+        const response = await fetch(
+            "https://smartreader-backend.onrender.com/explain",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    text: text
+                })
+            }
+        );
+
         const data = await response.json();
-        setResult(data)
-        
-        }
+
+        setResult(data);
+    }
+
     return (
         <div id="body">
 
             {!pdf ? (
-                <label htmlFor="pdf-upload" id="upload-box">
+                <label
+                    htmlFor="pdf-upload"
+                    id="upload-box"
+                >
                     Upload PDF
                 </label>
             ) : (
-                <div id="pdf-container" onMouseUp={handleTextSelection}>
+                <div id="pdf-container">
+
                     <Document
                         file={pdf}
-                        onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                        onLoadSuccess={({
+                            numPages
+                        }) =>
+                            setNumPages(numPages)
+                        }
                     >
-                        {Array.from({ length: numPages }, (_, index) => (
-                            <Page
-                                key={index}
-                                pageNumber={index + 1}
-                                width={pdfWidth}
-                            />
-                        ))}
+                        {Array.from(
+                            { length: numPages },
+                            (_, index) => (
+                                <Page
+                                    key={index}
+                                    pageNumber={index + 1}
+                                    width={pdfWidth}
+                                />
+                            )
+                        )}
                     </Document>
+
                 </div>
             )}
 
-            {/* display the text */}
-            {selectedText && popupPosition && result &&(
-                <div
-                    id="definition-card"
-                    style={{
-                        top: `${popupPosition.top}px`,
-                        left: `${popupPosition.left}px`
-                    }}
-                >
-                    <h3>{selectedText}</h3>
-                    <p>
-                        <strong>Pronunciation:</strong> {result.pronunciation}
-                    </p>
+            {selectedText &&
+                popupPosition &&
+                result && (
+                    <div
+                        id="definition-card"
+                        style={{
+                            top: `${popupPosition.top}px`,
+                            left: `${popupPosition.left}px`
+                        }}
+                    >
+                        <h3>{selectedText}</h3>
 
-                    <p>
-                        <strong>Meaning:</strong> {result.meaning}
-                    </p>
+                        <p>
+                            <strong>
+                                Pronunciation:
+                            </strong>{" "}
+                            {result.pronunciation}
+                        </p>
 
-                    <p>
-                        <strong>Definition:</strong> {result.definition}
-                    </p>
-                </div>
-            )}
+                        <p>
+                            <strong>
+                                Meaning:
+                            </strong>{" "}
+                            {result.meaning}
+                        </p>
+
+                        <p>
+                            <strong>
+                                Definition:
+                            </strong>{" "}
+                            {result.definition}
+                        </p>
+                    </div>
+                )}
 
             <input
                 id="pdf-upload"
