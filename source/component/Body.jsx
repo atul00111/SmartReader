@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -17,46 +17,25 @@ function Body({ pdf, setPdf }) {
     // Responsive PDF width
     useEffect(() => {
         function updateWidth() {
-            setPdfWidth(
-                Math.min(window.innerWidth - 40, 900)
-            );
+            setPdfWidth(Math.min(window.innerWidth - 40, 900));
         }
 
         updateWidth();
-
         window.addEventListener("resize", updateWidth);
 
         return () => {
-            window.removeEventListener(
-                "resize",
-                updateWidth
-            );
+            window.removeEventListener("resize", updateWidth);
         };
     }, []);
 
-    // Detect text selection on desktop and mobile
+    // Detect text selection
     useEffect(() => {
-        let timer;
-
-        function handleSelectionChange() {
-            clearTimeout(timer);
-
-            timer = setTimeout(() => {
-                handleTextSelection();
-            }, 300);
-        }
-
-        document.addEventListener(
-            "selectionchange",
-            handleSelectionChange
-        );
+        document.addEventListener("selectionchange", handleTextSelection);
 
         return () => {
-            clearTimeout(timer);
-
             document.removeEventListener(
                 "selectionchange",
-                handleSelectionChange
+                handleTextSelection
             );
         };
     }, []);
@@ -65,7 +44,7 @@ function Body({ pdf, setPdf }) {
         setPdf(e.target.files[0]);
     }
 
-    async function handleTextSelection() {
+    function handleTextSelection() {
         const selection = window.getSelection();
 
         if (!selection || selection.rangeCount === 0) {
@@ -73,67 +52,68 @@ function Body({ pdf, setPdf }) {
         }
 
         const text = selection.toString().trim();
+        const container = document.getElementById("pdf-container");
 
-        if (!text) {
-            setSelectedText("");
-            setPopupPosition(null);
-            setResult(null);
+        if (!container) {
             return;
         }
 
-        const rect =
-            selection
-                .getRangeAt(0)
-                .getBoundingClientRect();
+        const range = selection.getRangeAt(0);
 
-        const container =
-            document.getElementById("pdf-container");
+        // Ignore selections outside the PDF
+        if (!container.contains(range.commonAncestorContainer)) {
+            return;
+        }
 
-        const containerRect =
-            container.getBoundingClientRect();
+        if (!text) {
+            clearSelection();
+            return;
+        }
+
+        const rect = range.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
 
         setSelectedText(text);
         setResult(null);
 
         setPopupPosition({
-            top:
-                rect.bottom -
-                containerRect.top +
-                10,
-
-            left:
-                rect.left -
-                containerRect.left
+            top: rect.bottom - containerRect.top + 10,
+            left: rect.left - containerRect.left
         });
+    }
 
-        const response = await fetch(
-            "https://smartreader-backend.onrender.com/explain",
-            {
-                method: "POST",
+    async function explainText() {
+        try {
+            const response = await fetch(
+                "https://smartreader-backend.onrender.com/explain",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ text: selectedText })
+                }
+            );
 
-                headers: {
-                    "Content-Type": "application/json"
-                },
+            const data = await response.json();
+            setResult(data);
 
-                body: JSON.stringify({
-                    text: text
-                })
-            }
-        );
+        } catch (error) {
+            console.error("Explanation error:", error);
+        }
+    }
 
-        const data = await response.json();
-
-        setResult(data);
+    function clearSelection() {
+        setSelectedText("");
+        setPopupPosition(null);
+        setResult(null);
     }
 
     return (
         <div id="body">
 
             {!pdf ? (
-                <label
-                    htmlFor="pdf-upload"
-                    id="upload-box"
-                >
+                <label htmlFor="pdf-upload" id="upload-box">
                     Upload PDF
                 </label>
             ) : (
@@ -141,61 +121,68 @@ function Body({ pdf, setPdf }) {
 
                     <Document
                         file={pdf}
-                        onLoadSuccess={({
-                            numPages
-                        }) =>
+                        onLoadSuccess={({ numPages }) =>
                             setNumPages(numPages)
                         }
                     >
-                        {Array.from(
-                            { length: numPages },
-                            (_, index) => (
-                                <Page
-                                    key={index}
-                                    pageNumber={index + 1}
-                                    width={pdfWidth}
-                                />
-                            )
-                        )}
+                        {Array.from({ length: numPages }, (_, index) => (
+                            <Page
+                                key={index}
+                                pageNumber={index + 1}
+                                width={pdfWidth}
+                            />
+                        ))}
                     </Document>
+
+                    {selectedText && popupPosition && !result && (
+                        <div
+                            id="selection-card"
+                            style={{
+                                top: `${popupPosition.top}px`,
+                                left: `${popupPosition.left}px`
+                            }}
+                        >
+                            <h3>{selectedText}</h3>
+
+                            <button onClick={explainText}>
+                                Send
+                            </button>
+
+                            <button onClick={clearSelection}>
+                                Change
+                            </button>
+                        </div>
+                    )}
+
+                    {selectedText && popupPosition && result && (
+                        <div
+                            id="definition-card"
+                            style={{
+                                top: `${popupPosition.top}px`,
+                                left: `${popupPosition.left}px`
+                            }}
+                        >
+                            <h3>{selectedText}</h3>
+
+                            <p>
+                                <strong>Pronunciation:</strong>{" "}
+                                {result.pronunciation}
+                            </p>
+
+                            <p>
+                                <strong>Meaning:</strong>{" "}
+                                {result.meaning}
+                            </p>
+
+                            <p>
+                                <strong>Definition:</strong>{" "}
+                                {result.definition}
+                            </p>
+                        </div>
+                    )}
 
                 </div>
             )}
-
-            {selectedText &&
-                popupPosition &&
-                result && (
-                    <div
-                        id="definition-card"
-                        style={{
-                            top: `${popupPosition.top}px`,
-                            left: `${popupPosition.left}px`
-                        }}
-                    >
-                        <h3>{selectedText}</h3>
-
-                        <p>
-                            <strong>
-                                Pronunciation:
-                            </strong>{" "}
-                            {result.pronunciation}
-                        </p>
-
-                        <p>
-                            <strong>
-                                Meaning:
-                            </strong>{" "}
-                            {result.meaning}
-                        </p>
-
-                        <p>
-                            <strong>
-                                Definition:
-                            </strong>{" "}
-                            {result.definition}
-                        </p>
-                    </div>
-                )}
 
             <input
                 id="pdf-upload"
