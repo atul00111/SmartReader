@@ -7,8 +7,8 @@
   "type": "commonjs",
 
   "scripts": {
-    "start": "parcel source/main.html",
-    "build": "parcel build source/main.html"
+    "start": "parcel source/index.html",
+    "build": "parcel build source/index.html"
   },
 
   "dependencies": {
