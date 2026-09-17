@@ -11,9 +11,15 @@ body,
     min-height: 100%;
 }
 
+html {
+    -webkit-text-size-adjust: 100%;
+}
+
 body {
     background: #F5F5F7;
-    overflow-x: hidden;
+    /* clip instead of hidden: hidden creates a scroll container and
+       silently breaks position: sticky on the header */
+    overflow-x: clip;
 }
 
 
@@ -21,7 +27,7 @@ body {
 
 #container {
     width: 100%;
-    min-height: 100vh;
+    min-height: 100dvh;
 
     padding-top: 10px;
 
@@ -29,8 +35,13 @@ body {
     --header: #FFFFFF;
     --text: #222222;
     --border: #E9E9EE;
+    --card: #FFFFFF;
+    --card-text: #222222;
+    --muted: #6B6B72;
+    --accent: #6C63FF;
     --radius: 12px;
     --shadow: 0 6px 20px rgba(0, 0, 0, .15);
+    --rail: 64px;
 
     background: var(--bg);
     color: var(--text);
@@ -43,6 +54,10 @@ body {
     --header: #222225;
     --text: #FFFFFF;
     --border: #2E2E33;
+    --card: #26262B;
+    --card-text: #F2F2F5;
+    --muted: #A1A1AA;
+    color-scheme: dark;
 }
 
 #container.reading {
@@ -50,6 +65,9 @@ body {
     --header: #EFE5CB;
     --text: #3D3529;
     --border: #E3D8B8;
+    --card: #FDF8EC;
+    --card-text: #3D3529;
+    --muted: #7A6E58;
 }
 
 
@@ -90,6 +108,13 @@ body:has(#container.reading) {
     transition: background .3s ease, border-color .3s ease;
 }
 
+#icon {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
 
 /* MODES */
 
@@ -105,6 +130,7 @@ body:has(#container.reading) {
     border-radius: 10px;
     cursor: pointer;
     font-weight: bold;
+    font-family: inherit;
     transition: background .2s ease, color .2s ease, transform .2s ease;
 }
 
@@ -121,10 +147,25 @@ body:has(#container.reading) {
     #but3:hover {
         background: wheat;
     }
+
+    #upload-box:hover {
+        border-color: var(--accent);
+        background: var(--card);
+        transform: translateY(-3px);
+    }
+
+    #change-pdf-button:hover {
+        background-color: rgba(128, 128, 128, .25);
+    }
 }
 
 #modes button:active {
     transform: scale(.96);
+}
+
+:where(button, label, a):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 
@@ -132,13 +173,14 @@ body:has(#container.reading) {
 
 #body {
     width: 100%;
-    min-height: calc(100vh - 90px);
+    min-height: calc(100dvh - 90px);
 
     padding: clamp(15px, 4vw, 20px) clamp(15px, 5vw, 30px) clamp(30px, 6vw, 50px);
 
     display: flex;
     justify-content: center;
-    align-items: center;
+    /* flex-start so the top of a long PDF is never pushed out of reach */
+    align-items: flex-start;
 }
 
 
@@ -147,6 +189,7 @@ body:has(#container.reading) {
 #upload-box {
     width: min(280px, 100%);
     height: clamp(120px, 25vw, 150px);
+    margin: auto;
 
     background: var(--header);
     color: var(--text);
@@ -167,13 +210,8 @@ body:has(#container.reading) {
     transition: border-color .2s ease, background .2s ease, transform .2s ease;
 }
 
-#upload-box:hover {
-    border-color: #6C63FF;
-    background: #F8F7FF;
-    transform: translateY(-3px);
-}
-
-#pdf-upload {
+#pdf-upload,
+#change-pdf {
     display: none;
 }
 
@@ -187,35 +225,46 @@ body:has(#container.reading) {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 0 clamp(8px, 3vw, 0px);
 }
 
-.react-pdf__Page {
+.page-slot {
     margin-bottom: 25px;
     max-width: 100%;
 }
 
-.react-pdf__Page canvas {
-    display: block !important;
-    max-width: 100% !important;
-    height: auto !important;
+.react-pdf__Page {
+    max-width: 100%;
+}
 
+/* The page is rendered at the exact container width from JS, so the canvas is
+   never CSS-scaled. Scaling it here would leave the text layer misaligned and
+   make selection highlights sit in the wrong place. */
+.react-pdf__Page canvas {
+    display: block;
     box-shadow: 0 2px 12px rgba(0, 0, 0, .12);
 }
 
+.pdf-status {
+    margin: auto;
+    padding: 20px;
+    text-align: center;
+    color: var(--muted);
+}
+
+
 /* POPUPS */
+
 #selection-card,
 #definition-card {
     position: absolute;
-    width: min(300px, calc(100vw - 24px));
-    max-width: calc(100vw - 24px);
+    width: min(320px, calc(100% - 16px));
 
     padding: 14px;
 
-    background: white;
-    color: #222;
+    background: var(--card);
+    color: var(--card-text);
 
-    border: 1px solid #E5E5EA;
+    border: 1px solid var(--border);
     border-radius: 12px;
 
     box-shadow: var(--shadow);
@@ -225,51 +274,89 @@ body:has(#container.reading) {
     overflow-wrap: break-word;
 }
 
+/* Used when the selection sits near the bottom of the screen */
+#selection-card.above,
+#definition-card.above {
+    transform: translateY(calc(-100% - 20px));
+}
+
 #selection-card h3,
 #definition-card h3 {
     margin-bottom: 10px;
+    font-size: 16px;
+    line-height: 1.35;
+
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
-#selection-card button {
+#selection-card button,
+#definition-card button {
     min-height: 40px;
     padding: 8px 14px;
-    margin-right: 8px;
 
     border: none;
     border-radius: 8px;
 
-    background: #F0F0F2;
-    color: #222;
+    background: rgba(128, 128, 128, .16);
+    color: inherit;
 
+    font-family: inherit;
     font-weight: 600;
+    font-size: 14px;
     cursor: pointer;
 
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
 }
 
-#selection-card button:active {
-    transform: scale(0.96);
+#selection-card button:active,
+#definition-card button:active {
+    transform: scale(.96);
 }
 
-#selection-card button:last-child {
-    margin-right: 0;
+#selection-card button.primary {
+    background: var(--accent);
+    color: #FFFFFF;
+}
+
+#selection-card button[disabled] {
+    opacity: .6;
+    cursor: default;
+}
+
+.card-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.card-error {
+    margin-bottom: 10px;
+    color: #C0392B;
+    font-size: 14px;
 }
 
 #definition-card {
-    max-height: 60vh;
+    max-height: 60dvh;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 #definition-card p {
     margin-top: 8px;
-    line-height: 1.4;
+    line-height: 1.45;
+    font-size: 15px;
+}
+
+#definition-card .card-actions {
+    margin-top: 12px;
 }
 
 
-#change-pdf {
-    display: none;
-}
+/* HEADER CONTROLS */
 
 #change-pdf-button {
     padding: 8px 12px;
@@ -281,10 +368,6 @@ body:has(#container.reading) {
     transition: background-color .3s ease;
 }
 
-#change-pdf-button:hover {
-    background-color: rgba(128, 128, 128, .333);
-}
-
 #pdf-name {
     min-width: 0;
     overflow: hidden;
@@ -293,9 +376,9 @@ body:has(#container.reading) {
 }
 
 
-/* RESPONSIVE */
+/* TABLET */
 
-@media (max-width: 900px) {
+@media (max-width: 900px) and (min-width: 721px) {
     #header {
         flex-wrap: wrap;
         justify-content: center;
@@ -310,11 +393,6 @@ body:has(#container.reading) {
         max-width: 220px;
     }
 
-    #change-pdf-button {
-        padding: 7px 10px;
-        font-size: 12px;
-    }
-
     #modes {
         width: 100%;
         justify-content: center;
@@ -325,41 +403,111 @@ body:has(#container.reading) {
         padding: 8px 10px;
         font-size: 12px;
     }
-
-    #body {
-        padding: 15px 10px 40px;
-    }
 }
 
-@media (max-width: 480px) {
+
+/* PHONE — header becomes a left rail, PDF gets the whole screen */
+
+@media (max-width: 720px) {
+    #container {
+        padding-top: 0;
+        padding-left: calc(var(--rail) + env(safe-area-inset-left));
+    }
+
     #header {
-        width: calc(100% - 12px);
-        margin: 0 6px;
-        border-radius: 10px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+
+        width: calc(var(--rail) + env(safe-area-inset-left));
+        min-height: 0;
+        margin: 0;
+
+        padding: 10px 6px calc(10px + env(safe-area-inset-bottom));
+        padding-left: calc(6px + env(safe-area-inset-left));
+
+        border-width: 0 1px 0 0;
+        border-radius: 0;
+
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        gap: 12px;
+
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    #icon {
+        flex-direction: column;
+        gap: 4px;
+        text-align: center;
     }
 
     #icon h1 {
-        font-size: 20px;
+        font-size: 11px;
+        line-height: 1.15;
+        font-weight: 700;
     }
 
+    /* No room for the filename in a rail — the page itself shows the document */
     #pdf-name {
-        max-width: 140px;
+        display: none;
     }
 
-    #upload-box {
+    #modes {
+        flex-direction: column;
+        gap: 6px;
+        margin-top: auto;
+    }
+
+    #modes button,
+    #change-pdf-button {
         width: 100%;
-        max-width: 260px;
+        padding: 8px 2px;
+        font-size: 10px;
+        line-height: 1.1;
+        text-align: center;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    #change-pdf-button {
+        min-height: 38px;
+    }
+
+    #body {
+        min-height: 100dvh;
+        padding: 0;
+    }
+
+    #pdf-container {
+        width: 100%;
+    }
+
+    .page-slot {
+        margin-bottom: 8px;
+    }
+
+    .react-pdf__Page canvas {
+        box-shadow: none;
+    }
+
+    #selection-card,
+    #definition-card {
+        width: calc(100% - 16px);
+        padding: 12px;
     }
 
     #definition-card {
-        width: calc(100vw - 24px);
-        padding: 12px;
+        max-height: 55dvh;
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
     * {
         transition: none !important;
+        animation: none !important;
     }
 }
-
