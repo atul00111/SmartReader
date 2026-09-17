@@ -57,7 +57,7 @@ function Body({ pdf, setPdf }) {
         left: rect.left - containerRect.left
     });
 
-        const response = await fetch("http://localhost:3000/explain", {
+        const response = await fetch("https://smartreader-backend.onrender.com/explain", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
